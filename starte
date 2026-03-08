@@ -1,0 +1,251 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+
+local roleESP = false
+local allESP = false
+local silentAimEnabled = false
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,230,0,210)
+frame.Position = UDim2.new(0.1,0,0.2,0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+Instance.new("UICorner",frame)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,30)
+title.BackgroundColor3 = Color3.fromRGB(20,20,20)
+title.Text = "ESP Menu"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 15
+title.Parent = frame
+Instance.new("UICorner",title)
+
+local roleButton = Instance.new("TextButton")
+roleButton.Size = UDim2.new(1,-20,0,40)
+roleButton.Position = UDim2.new(0,10,0,50)
+roleButton.BackgroundColor3 = Color3.fromRGB(45,45,45)
+roleButton.Text = "ROLE ESP OFF"
+roleButton.TextColor3 = Color3.new(1,1,1)
+roleButton.Font = Enum.Font.GothamBold
+roleButton.TextSize = 14
+roleButton.Parent = frame
+Instance.new("UICorner",roleButton)
+
+local allButton = Instance.new("TextButton")
+allButton.Size = UDim2.new(1,-20,0,40)
+allButton.Position = UDim2.new(0,10,0,100)
+allButton.BackgroundColor3 = Color3.fromRGB(45,45,45)
+allButton.Text = "PLAYER ESP OFF"
+allButton.TextColor3 = Color3.new(1,1,1)
+allButton.Font = Enum.Font.GothamBold
+allButton.TextSize = 14
+allButton.Parent = frame
+Instance.new("UICorner",allButton)
+
+local silentButton = Instance.new("TextButton")
+silentButton.Size = UDim2.new(1,-20,0,40)
+silentButton.Position = UDim2.new(0,10,0,150)
+silentButton.BackgroundColor3 = Color3.fromRGB(45,45,45)
+silentButton.Text = "SILENT AIM OFF"
+silentButton.TextColor3 = Color3.new(1,1,1)
+silentButton.Font = Enum.Font.GothamBold
+silentButton.TextSize = 14
+silentButton.Parent = frame
+Instance.new("UICorner",silentButton)
+
+-- ПЕРЕТАСКИВАНИЕ (ПК + ТЕЛЕФОН)
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+	local delta = input.Position - dragStart
+	frame.Position = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+end
+
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+		
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+title.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+	or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UIS.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		update(input)
+	end
+end)
+
+-- Определение роли
+local function getRole(plr)
+	local backpack = plr:FindFirstChild("Backpack")
+	local char = plr.Character
+
+	if backpack and backpack:FindFirstChild("Knife") then
+		return "Murderer"
+	end
+
+	if backpack and backpack:FindFirstChild("Gun") then
+		return "Sheriff"
+	end
+
+	if char and char:FindFirstChild("Knife") then
+		return "Murderer"
+	end
+
+	if char and char:FindFirstChild("Gun") then
+		return "Sheriff"
+	end
+
+	return nil
+end
+
+-- Highlight
+local function applyHighlight(plr)
+	if plr == player then return end
+
+	local char = plr.Character
+	if not char then return end
+
+	local role = getRole(plr)
+	local highlight = char:FindFirstChild("HighlightESP")
+
+	local shouldHave = (allESP or (roleESP and role))
+
+	if shouldHave then
+
+		if not highlight then
+			highlight = Instance.new("Highlight")
+			highlight.Name = "HighlightESP"
+			highlight.Parent = char
+			highlight.FillTransparency = 0.35
+		end
+
+		if role == "Murderer" then
+			highlight.FillColor = Color3.fromRGB(255,0,0)
+		elseif role == "Sheriff" then
+			highlight.FillColor = Color3.fromRGB(0,120,255)
+		else
+			highlight.FillColor = Color3.fromRGB(0,255,0)
+		end
+
+	else
+		if highlight then
+			highlight:Destroy()
+		end
+	end
+end
+
+local function refreshAllESP()
+	for _, plr in pairs(Players:GetPlayers()) do
+		applyHighlight(plr)
+	end
+end
+
+-- кнопки
+roleButton.MouseButton1Click:Connect(function()
+	roleESP = not roleESP
+	roleButton.Text = roleESP and "ROLE ESP ON" or "ROLE ESP OFF"
+	refreshAllESP()
+end)
+
+allButton.MouseButton1Click:Connect(function()
+	allESP = not allESP
+	allButton.Text = allESP and "PLAYER ESP ON" or "PLAYER ESP OFF"
+	refreshAllESP()
+end)
+
+silentButton.MouseButton1Click:Connect(function()
+	silentAimEnabled = not silentAimEnabled
+	silentButton.Text = silentAimEnabled and "SILENT AIM ON" or "SILENT AIM OFF"
+end)
+
+-- найти убийцу
+local function getNearestMurderer()
+
+	local camera = workspace.CurrentCamera
+	local cameraPos = camera.CFrame.Position
+
+	local closest
+	local dist = math.huge
+
+	for _,plr in pairs(Players:GetPlayers()) do
+
+		if plr ~= player and getRole(plr) == "Murderer" and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+
+			local d = (plr.Character.HumanoidRootPart.Position - cameraPos).Magnitude
+
+			if d < dist then
+				dist = d
+				closest = plr
+			end
+
+		end
+
+	end
+
+	return closest
+end
+
+-- Silent Aim (ПК + телефон)
+UIS.InputBegan:Connect(function(input,gp)
+
+	if gp then return end
+	if not silentAimEnabled then return end
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+
+		local character = player.Character
+		if not character then return end
+
+		local tool = character:FindFirstChildOfClass("Tool")
+		if not tool or tool.Name ~= "Gun" then return end
+
+		local target = getNearestMurderer()
+		if not target then return end
+
+		local part = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
+
+		if part then
+			local mouse = player:GetMouse()
+			mouse.Hit = CFrame.new(part.Position)
+			tool:Activate()
+		end
+
+	end
+
+end)
+
+refreshAllESP()
